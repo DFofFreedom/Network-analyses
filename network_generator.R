@@ -41,9 +41,9 @@ dists<-as.matrix(dist(spat[,2:3]))
 rownames(dists)<-colnames(dists)<-group.id
 
 #standardise and invert (so 1 is closest and 0.001 is furthest away)
-dists2<-dists/max(dists)
-dists3<-1.001-dists2
-diag(dists3)<-1
+   #edited this to a neater version and re-named
+close<-1/(1+dists)
+diag(close)<-1
 
 #-----------------------------------------------------------------------------------------------------------------
 
@@ -54,17 +54,18 @@ colnames(net.d)<-rownames(net.d)<-inds[,1]
 
 #create network info
 #current negbinoms are:
-#within group - size=i.dens and prob=0.3 and then multiply output by 10
+#within group - size=i.dens and prob=0.3 
 #out of group - size=o.dens x distance (remember higher is closer) then to the power of d.eff. 
-#For out of group interactions the edge weight for each indiv is calculated and added together. This is because of the old code this has been adapted from and could be removed
 
 for (i in 1:(nrow(inds)-1)){
    for(j in (i+1):nrow(inds)){
       if(inds[,2][i]==inds[,2][j]){
-         net.d[i,j]<-round(rnbinom(1,size=i.dens*(dists3[which(colnames(dists3)==inds[,2][i]),which(colnames(dists3)==inds[,2][j])])^d.eff,prob=0.3))+round(rnbinom(1,size=i.dens*(dists3[which(colnames(dists3)==inds[,2][i]),which(colnames(dists3)==inds[,2][j])])^d.eff,prob=0.3))
+         net.d[i,j]<-round(rnbinom(1,size=i.dens,prob=0.3))
       }
       else{
-         net.d[i,j]<-round(rnbinom(1,size=o.dens*(dists3[which(colnames(dists3)==inds[,2][i]),which(colnames(dists3)==inds[,2][j])])^d.eff,prob=0.3))+round(rnbinom(1,size=o.dens*(dists3[which(colnames(dists3)==inds[,2][i]),which(colnames(dists3)==inds[,2][j])])^d.eff,prob=0.3))
+         net.d[i,j]<-round(rnbinom(1,size=o.dens*(close[which(colnames(close)==inds[,2][i]),
+                                                        which(colnames(close)==inds[,2][j])])^d.eff,
+                                   prob=0.3))
       }
    }
 }    
