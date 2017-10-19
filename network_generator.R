@@ -1,4 +1,5 @@
-network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,plot=F){
+require(igraph)
+network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,sex.eff,plot=F){
 
 #and use this to calculate the overall size of the population
 n.indivs<-mean.group.size*groups
@@ -11,8 +12,11 @@ indivs<-seq(1,n.indivs,1)
 poss.groups<-rep(seq(1,groups,1),each=max.group.size)
 indiv.groups<-sample(poss.groups,n.indivs,replace=F)
 
+#Randomly assign each individual a sex
+sex = sample(c("F","M"),n.indivs,replace=T)
+
 #arrange in data frame and order by group
-inds<-data.frame(indivs,indiv.groups)
+inds<-data.frame(indivs,indiv.groups,sex)
 
 ###SPATIAL LOCATION OF GROUPS/CLUSTERS###
 
@@ -55,7 +59,8 @@ colnames(net.d)<-rownames(net.d)<-inds[,1]
 #create network info
 #current negbinoms are:
 #within group - size=i.dens and prob=0.3 
-#out of group - size=o.dens x distance (remember higher is closer) then to the power of d.eff. 
+#out of group - size=o.dens x distance (remember higher is closer) then to the power of d.eff.
+#If indivs are the same sex, then edge gets weakened, size = sex.eff, prob=0.3
 
 for (i in 1:(nrow(inds)-1)){
    for(j in (i+1):nrow(inds)){
@@ -67,9 +72,12 @@ for (i in 1:(nrow(inds)-1)){
                                                         which(colnames(close)==inds[,2][j])])^d.eff,
                                    prob=0.3))
       }
-   }
+     if(inds[,3][i]==inds[,3][j]){
+       net.d[i,j] = net.d[i,j] - rbinom(1,sex.eff,0.3)
+     }
+     if(net.d[i,j] < 0) {  net.d[i,j] = 0  }
 }    
-
+}
 #this sets the diagonal to zero i.e. no self loops in network
 net3.d<-t(net.d)
 diag(net3.d)<-0
@@ -90,9 +98,10 @@ if(plot==T){
    par(mfrow=c(1,1))
    net2.d<-graph.adjacency(net.d,mode="undirected",weighted=TRUE,diag=FALSE)
    net2.d<-set.vertex.attribute(net2.d, "group", index=V(net2.d), inds[,2])
+   net2.d<-set.vertex.attribute(net2.d, "sex", index=V(net2.d), inds[,3])
    V(net2.d)$group
-   #V(net2.d)$color=V(net2.d)$group #assign the "Group" attribute as the vertex color
-   V(net2.d)$color="blue"
+   V(net2.d)$color=V(net2.d)$sex #assign the "sex" attribute as the vertex color
+   #V(net2.d)$color="blue"
    plot(net2.d,edge.width=(E(net2.d)$weight)^0.25,layout=layout.fruchterman.reingold(net2.d),vertex.size=8,vertex.label=NA,margin=c(0,0,0,0))
 }
 
@@ -112,3 +121,6 @@ return(pop.dat)
 
 #end function
 }
+
+network.generator(groups=10,mean.group.size=10,max.group.size=10,
+                  d.eff=3,o.dens=0.3,i.dens=1,sex.eff=10,plot=TRUE)
