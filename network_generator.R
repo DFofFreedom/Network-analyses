@@ -1,4 +1,4 @@
-network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,plot=F){
+network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,sex.eff,plot=F){
 	#i.dens = density of within group associations?
 	#o.dens = density of outside group associations?
 	#d.eff = 
@@ -46,6 +46,9 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	dists2<-dists/max(dists)
 	dists3<-1.001-dists2
 	diag(dists3)<-1
+	
+	#could try this instead? Neater
+	close= 1/(1+dist)
 
 	inds$x=group.x[inds[,2]]
 	inds$y=group.x[inds[,2]]
@@ -74,9 +77,12 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	
 	#What is the effect of samesex? What is the effect of sex? 
 	
-	net.d[rbind(dyads[samesite,],dyads[samesite,c(2,1)])]=sapply(which(samesite),function (x) round(rnbinom(1,size=i.dens*(distsv[x])^d.eff,prob=0.3))+round(rnbinom(1,size=i.dens*(distsv[x])^d.eff,prob=0.3)))
-	net.d[rbind(dyads[!samesite,],dyads[!samesite,c(2,1)])]=sapply(which(!samesite),function (x) round(rnbinom(1,size=o.dens*(distsv[x])^d.eff,prob=0.3))+round(rnbinom(1,size=o.dens*(distsv[x])^d.eff,prob=0.3)))
+	net.d[rbind(dyads[samesite,],dyads[samesite,c(2,1)])]=sapply(which(samesite),function (x) round(rnbinom(1,size=i.dens,prob=0.3)))
+	net.d[rbind(dyads[!samesite,],dyads[!samesite,c(2,1)])]=sapply(which(!samesite),function (x) round(rnbinom(1,size=o.dens*(distsv[x])^d.eff,prob=0.3)))
+	#Add effect where individuals of the same sex avoid each other
+	net.d[factor(samesex),factor(samesex)] - round(rnbinom(sum(samesex)^2, size=sex.eff, prob=0.3))
 	diag(net.d)=0
+	net.d[net.d < 0] = 0   #this may not be necessary   							       
 		
 
 	#plots the graph of each network made if plot=TRUE
@@ -85,9 +91,9 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	   par(mfrow=c(1,1))
 	   net2.d<-graph.adjacency(net.d,mode="undirected",weighted=TRUE,diag=FALSE)
 	   net2.d<-set.vertex.attribute(net2.d, "group", index=V(net2.d), inds[,2])
-	   V(net2.d)$group
-	   #V(net2.d)$color=V(net2.d)$group #assign the "Group" attribute as the vertex color
-	   V(net2.d)$color="blue"
+	   net2.d<-set.vertex.attribute(net2.d, "sex", index=V(net2.d), inds[,3])
+	   V(net2.d)$color=factor(V(net2.d)$sex) #assign the "sex" attribute as the vertex color
+	   #V(net2.d)$color="blue"
 	   plot(net2.d,edge.width=(E(net2.d)$weight)^0.25,layout=layout.fruchterman.reingold(net2.d),vertex.size=8,vertex.label=NA,margin=c(0,0,0,0))
 	}
 
