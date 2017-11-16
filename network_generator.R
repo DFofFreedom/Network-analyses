@@ -1,3 +1,4 @@
+###NETWORK GENERATION FUNCTION####
 network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,sex.eff=NA,m.i.eff=NA,m.o.eff=NA,plot=F){
 	#####
 	#Network generator: a function that does STUFF.
@@ -23,7 +24,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	if(is.na(sex.eff)){
 		sex.eff=1
 	}
-
+	###SETUP BASE POPULATION####
 	#and use this to calculate the overall size of the population
 	n.indivs<-mean.group.size*groups
 
@@ -42,7 +43,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	#Generate sex vector. This sounds rude.
 	inds$sex=sample(c("M","F"),nrow(inds),replace=T)
 
-	###SPATIAL LOCATION OF GROUPS/CLUSTERS###
+	###SPATIAL LOCATION OF GROUPS/CLUSTERS####
 
 	#create a dataframe of group locations
 	#points end up on a grid in space
@@ -107,7 +108,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	
 	#Wasn't sure of your rationale for change the equations - have retained.
 
-	#WITHIN GROUP
+	#WITHIN GROUP EDGES####
 
 	#FF
 	net.d[symmat(samesite&!ismale,dyads)]=sapply(which(samesite&!ismale,dyads),function (x) round(rnbinom(1,size=i.dens*(distsv[x])^d.eff,prob=0.3))+
@@ -119,7 +120,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	net.d[symmat(samesite&ismale&samesex,dyads)]=sapply(which(samesite&ismale&samesex),function (x) round(rnbinom(1,size=m.i.eff+(i.dens*(distsv[x])^d.eff),prob=0.3))+
 		round(rnbinom(1,size=m.i.eff+(i.dens*(distsv[x])^d.eff),prob=0.3)))
 	
-	#OUTSIDE GROUP
+	#OUTSIDE GROUP EDGES####
 
 	#FF
 	net.d[symmat(!samesite&!ismale,dyads)]=sapply(which(!samesite&!ismale,dyads),function (x) round(rnbinom(1,size=o.dens*(distsv[x])^d.eff,prob=0.3))+
@@ -131,7 +132,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	net.d[symmat(!samesite&ismale&samesex,dyads)]=sapply(which(!samesite&ismale&samesex),function (x) round(rnbinom(1,size=m.o.eff+(o.dens*(distsv[x])^d.eff),prob=0.3))+
 		round(rnbinom(1,size=m.o.eff+(o.dens*(distsv[x])^d.eff),prob=0.3)))	
 	
-	#SEX HOMOPHILY
+	#SEX HOMOPHILY EFFECT####
 	net.d[symmat(samesex,dyads)]= net.d[symmat(samesex,dyads)]*sex.eff
 
 	diag(net.d)=0
@@ -153,6 +154,8 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	return(pop.dat)
 }
 
+###NETWORK SAMPLING FUNCTION####		      
+		      
 networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
 	####
 	#pop.dat - pop.dat object produced by network_generator
@@ -169,7 +172,7 @@ networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
 	distmat=pop.dat$distmat
 	
 	#data frame of dyads
-	dyads=which(upper.tri(net.d),arr.ind=T)
+	dyads=which(upper.tri(network),arr.ind=T)
 	assocs=network[dyads]
 	names1=as.numeric(row.names(network)[dyads[,1]])
 	names2=as.numeric(colnames(network)[dyads[,2]])
@@ -196,7 +199,7 @@ networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
 	interactions=do.call(rbind,interactions)
 	interactions$sex1=inds$sex[match(interactions$name1,inds$indivs)]	
 	interactions$sex2=inds$sex[match(interactions$name2,inds$indivs)]	
-	return(list(truegbimat=gbimat,obsgbi=obsgbimat,obsnetwork=obsnetwork,interactions=interactions)
+	return(list(truegbimat=gbimat,obsgbi=obsgbimat,obsnetwork=obsnetwork,interactions=interactions))
 }
 
 assocnoise<-function(x,dyads,obseff){
