@@ -1,3 +1,9 @@
+#SYMMAT UTILITY FUNC
+symmat = function (bool,dyads){
+	return(rbind(dyads[bool,],dyads[bool,c(2,1)]))
+}
+
+
 ###NETWORK GENERATION FUNCTION####
 network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,sex.eff=NA,m.i.eff=NA,m.o.eff=NA,plot=F){
 	#####
@@ -99,15 +105,11 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	samesite=dsites[,1]==dsites[,2]
 	ismale=dsex[,1]=="M"|dsex[,2]=="M"
 	
-	#What is the effect of samesex? What is the effect of sex? 
-	#added this utility function to make code more readable
-	#move elsewhere eventually
+
 	symmat = function (bool,dyads){
 		return(rbind(dyads[bool,],dyads[bool,c(2,1)]))
 	}
 	
-	#Wasn't sure of your rationale for change the equations - have retained.
-
 	#WITHIN GROUP EDGES####
 
 	#FF
@@ -133,7 +135,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 		round(rnbinom(1,size=m.o.eff+(o.dens*(distsv[x])^d.eff),prob=0.3)))	
 	
 	#SEX HOMOPHILY EFFECT####
-	net.d[symmat(samesex,dyads)]= net.d[symmat(samesex,dyads)]*sex.eff
+	net.d[symmat(samesex,dyads)]= round(net.d[symmat(samesex,dyads)]*sex.eff)
 
 	diag(net.d)=0
 	
@@ -181,7 +183,7 @@ networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
 	#observed contact network - adds noise based on observation effort. 
 	#network
 	obsnetwork=network
-	obsnetwork[symmat(T,as.matrix(dyads[,3:4]))]=sapply(1:nrow(dyads),function (x) assocnoise(x,dyads,obseff))
+	obsnetwork[symmat(T,as.matrix(dyads[,3:4]))]=sapply(dyads$assoc,function (x) assocnoise(x,obseff))
 	
 	#generate GBI mat. Select a random individual - check chance of being seen with other
 	#indiv based on their associations. Repeat this for any individual added.
@@ -202,39 +204,82 @@ networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
 	return(list(truegbimat=gbimat,obsgbi=obsgbimat,obsnetwork=obsnetwork,interactions=interactions))
 }
 
-assocnoise<-function(x,dyads,obseff){
-	if(dyads$assocs[x]==0){
+assocnoise<-function(x,obseff){
+	if(x==0){
 		return(0)
 	} else {
-		xvec=seq(0,1,length.out=dyads$assocs[x]+1)
+		xvec=seq(0,1,length.out=x+1)
 		probs=(-(obseff-1)*(obseff*(xvec-1)+1))^(2-(2*xvec))
-		obsassoc=sample(0:dyads$assocs[x],1,1,prob=probs)
+		obsassoc=sample(0:x,1,1,prob=probs)
 		return(obsassoc)
 	}
 }
 
-makeevent<-function(inds,dyads,probnorm=NA){
+makeevent<-function(inds,dyads,probnorm=NA,verbose=F){
+	if(is.na(probnorm)){
+		probnorm=max(dyads$assoc)
+	}
 	#randomly pick an individual to start
 	gbirow=matrix(0,1,length(inds$indivs))
 	colnames(gbirow)=inds$indivs
 	seed=sample(inds$indivs,1)
-	gbirow[colnames(gbirow)==seed]=1	
-	fassoc=focalassoc(seed,dyads,probnorm,T)
+	seeddegree=abs(round(rnorm(1,sum(focalpotentials(seed,dyads)$assocs>0),2)))
+	gbirow[colnames(gbirow)==seed]=1
+	#scalev=(seeddegree-(sum(gbirow)-1))/probnorm
+	scalev=1
+	#not usins scalev as it stands. Far too stingy with group sizes!
+	if(verbose==T){
+		print(paste("seed is",seed))
+		print(paste("seed degree is",seeddegree))
+		print(paste("groupsize probability scaling factor is",scalev))
+	}	
+	fassoc=focalassoc(seed,dyads,gbirow,scalev,probnorm,T)
 	todo=fassoc
 	checked=seed
+	if(verbose==T){
+		print(paste("todo:",paste(todo,collapse=" ")))
+		print(paste("checked:",paste(checked,collapse=" ")))
+	}	
 	gbirow[colnames(gbirow)%in%fassoc]=1
 	
 	#check the associations of the individuals we are adding until we are no longer adding members
 	while(length(todo)>0){
-		fassoc=unlist(sapply(todo,function (x) focalassoc(x,dyads,probnorm)))
+		#scalev=(seeddegree-(sum(gbirow)-1))/probnorm
+		scalev=1
+		#randomise order of todo so we're not biased by the order they were added to matrix
+		todo=todo[sample(1:length(todo))]
+		#ISSUE: I love sapply, but this means that several members can be added to the group at once
+		#without considering the size of the group or the members being added at the same time.
+		#fassoc=unlist(sapply(todo,function (x) focalassoc(x,dyads,gbirow,scalev,probnorm)))
+		if(verbose==T){
+			print(paste("groupsize:",sum(gbirow)))
+			print(paste("groupsize probability scaling factor is",scalev))
+			print(paste("focal individual:",todo[1]))
+		}	
+		
+		fassoc=focalassoc(todo[1],dyads,gbirow,scalev,probnorm)
 		gbirow[colnames(gbirow)%in%fassoc]=1		
-		checked=c(checked,todo)
-		todo=unique(fassoc[!fassoc%in%checked])
+		checked=c(checked,todo[1])
+		todo=c(todo[!todo%in%checked],unique(fassoc[!fassoc%in%checked&!fassoc%in%todo]))
+		if(verbose==T){
+			print(paste("todo:",paste(todo,collapse=" ")))
+			print(paste("checked:",paste(checked,collapse=" ")))
+		}	
+
 	}
 	return(gbirow)	
 }
 
-focalassoc<-function(focal,dyads,probnorm,forcemulti=F){
+focalpotentials=function(focal,dyads){
+	potentials=dyads[dyads$names1==focal|dyads$names2==focal,]
+	#swap the names around for readability
+	potentials$names2[potentials$names1!=focal]=potentials$names1[potentials$names1!=focal]
+	potentials$names1[potentials$names1!=focal]=focal
+	return(potentials)
+}
+
+
+focalassoc<-function(focal,dyads,currevent,scalev,probnorm,forcemulti=F){
 	####
 	# focal = ID of individual whose associations we are using
 	# dyads = all possible dyads
@@ -242,22 +287,32 @@ focalassoc<-function(focal,dyads,probnorm,forcemulti=F){
 	# probnorm = value used for the normalisation of associations probabilities - if not given is set to 
 	# 	
 	####
+	
 
+	
 	if(is.na(probnorm)){
 		probnorm=max(dyads$assoc)
 	}
-	potentials=dyads[dyads$names1==focal|dyads$names2==focal,]
-	#swap the names around for readability
-	potentials$names2[potentials$names1!=focal]=potentials$names1[potentials$names1!=focal]
-	potentials$names1[potentials$names1!=focal]=focal
 	
+	potentials=focalpotentials(focal,dyads)
+	
+	eventmembers=colnames(currevent)[currevent==1&(colnames(currevent)!=focal)]
+	probs=potentials$assoc/(probnorm+1)
+	potids=potentials$names2[probs>0]
+	#consider these potentials vs existing group members - if they have a zero association with 
+	#an individual already in the group reduce the probability of them being in the GBI
+	probs[probs>0][sapply(potids, function (i) {potassocs=focalpotentials(i,dyads);sum(potassocs[potassocs$assocs==0,"names2"]%in%eventmembers)>0})]=0.001
+	#probabilities are scaled depending on the sociality of the seed
+	probs=probs*scalev
+	probs=probs^2
 	if(forcemulti==T){
 		gbirow=rep(0,nrow(potentials))
 		while(sum(gbirow)==0){
-			gbirow=rbinom(potentials$assoc, 1, potentials$assoc/(probnorm+1))
+
+			gbirow=rbinom(potentials$assoc, 1, probs)
 		}
 	} else {
-		gbirow=rbinom(potentials$assoc, 1, potentials$assoc/(probnorm+1))
+		gbirow=rbinom(potentials$assoc, 1,probs )
 
 	}
 	return(potentials$names2[gbirow==1])
