@@ -30,6 +30,12 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	if(is.na(sex.eff)){
 		sex.eff=1
 	}
+
+	#Scale m effects by i.eff and o.eff
+
+	m.i.eff=m.i.eff*i.dens
+	m.o.eff=m.o.eff*o.dens
+
 	###SETUP BASE POPULATION####
 	#and use this to calculate the overall size of the population
 	n.indivs<-mean.group.size*groups
@@ -138,6 +144,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	net.d[symmat(samesex,dyads)]= round(net.d[symmat(samesex,dyads)]*sex.eff)
 
 	diag(net.d)=0
+	net.d[net.d<0]=0
 	
 	#plots the graph of each network made if plot=TRUE
 	if(plot==T){
@@ -158,7 +165,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 
 ###NETWORK SAMPLING FUNCTION####		      
 		      
-networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
+networkobs<-function(pop.dat,timesteps,obseff,intfreq,floaterprob=0.01,probnorm=NA){
 	####
 	#pop.dat - pop.dat object produced by network_generator
 	#timesteps - number of timesteps
@@ -187,12 +194,16 @@ networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
 	
 	#generate GBI mat. Select a random individual - check chance of being seen with other
 	#indiv based on their associations. Repeat this for any individual added.
-	gbimat=t(sapply(1:timesteps,function (x) makeevent(inds,dyads,probnorm)))
+	gbid=t(sapply(1:timesteps,function (x) makeevent(inds,dyads,floaterprob,probnorm)))
+	gbimat=do.call(rbind,gbid[,1])
 	colnames(gbimat)=inds$indivs
+	gbigroups=do.call(c,gbid[,2])
+
 
 	#randomly see only certain groups based on observation effort (could make it so larger groups are more likely to be seen - but, simple for now)
-	obsgbimat=gbimat[sort(sample(1:timesteps,round(obseff*timesteps))),]
-
+	obsevents=sort(sample(1:timesteps,round(obseff*timesteps)))
+	obsgbimat=gbimat[obsevents,]
+	obsgbigroups=gbigroups[obsevents]
 	#similarly we could throw away individuals from the GBI here based on their sociality - but keeping it simple for now
 
 	
@@ -201,7 +212,7 @@ networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
 	interactions=do.call(rbind,interactions)
 	interactions$sex1=inds$sex[match(interactions$name1,inds$indivs)]	
 	interactions$sex2=inds$sex[match(interactions$name2,inds$indivs)]	
-	return(list(truegbimat=gbimat,obsgbi=obsgbimat,obsnetwork=obsnetwork,interactions=interactions))
+	return(list(truegbimat=gbimat,truegbigroups=gbigroups,obsgbi=obsgbimat,obsgbigroups=obsgbigroups,obsnetwork=obsnetwork,interactions=interactions))
 }
 
 assocnoise<-function(x,obseff){
@@ -215,7 +226,7 @@ assocnoise<-function(x,obseff){
 	}
 }
 
-makeevent<-function(inds,dyads,probnorm=NA,verbose=F){
+makeevent<-function(inds,dyads,floaterprob=0.01,probnorm=NA,verbose=F){
 	if(is.na(probnorm)){
 		probnorm=max(dyads$assoc)
 	}
@@ -223,6 +234,7 @@ makeevent<-function(inds,dyads,probnorm=NA,verbose=F){
 	gbirow=matrix(0,1,length(inds$indivs))
 	colnames(gbirow)=inds$indivs
 	seed=sample(inds$indivs,1)
+	seedsite=inds$groups[inds$indivs==seed]
 	seeddegree=abs(round(rnorm(1,sum(focalpotentials(seed,dyads)$assocs>0),2)))
 	gbirow[colnames(gbirow)==seed]=1
 	#scalev=(seeddegree-(sum(gbirow)-1))/probnorm
@@ -233,7 +245,7 @@ makeevent<-function(inds,dyads,probnorm=NA,verbose=F){
 		print(paste("seed degree is",seeddegree))
 		print(paste("groupsize probability scaling factor is",scalev))
 	}	
-	fassoc=focalassoc(seed,dyads,gbirow,scalev,probnorm,T)
+	fassoc=focalassoc(seed,dyads,gbirow,scalev,probnorm,floaterprob,T)
 	todo=fassoc
 	checked=seed
 	if(verbose==T){
@@ -250,14 +262,14 @@ makeevent<-function(inds,dyads,probnorm=NA,verbose=F){
 		todo=todo[sample(1:length(todo))]
 		#ISSUE: I love sapply, but this means that several members can be added to the group at once
 		#without considering the size of the group or the members being added at the same time.
-		#fassoc=unlist(sapply(todo,function (x) focalassoc(x,dyads,gbirow,scalev,probnorm)))
+		#fassoc=unlist(sapply(todo,function (x) focalassoc(x,dyads,gbirow,scalev,probnorm,floaterprob)))
 		if(verbose==T){
 			print(paste("groupsize:",sum(gbirow)))
 			print(paste("groupsize probability scaling factor is",scalev))
 			print(paste("focal individual:",todo[1]))
 		}	
 		
-		fassoc=focalassoc(todo[1],dyads,gbirow,scalev,probnorm)
+		fassoc=focalassoc(todo[1],dyads,gbirow,scalev,probnorm,floaterprob)
 		gbirow[colnames(gbirow)%in%fassoc]=1		
 		checked=c(checked,todo[1])
 		todo=c(todo[!todo%in%checked],unique(fassoc[!fassoc%in%checked&!fassoc%in%todo]))
@@ -267,7 +279,7 @@ makeevent<-function(inds,dyads,probnorm=NA,verbose=F){
 		}	
 
 	}
-	return(gbirow)	
+	return(list(gbirow=gbirow,group=seedsite))	
 }
 
 focalpotentials=function(focal,dyads){
@@ -279,7 +291,7 @@ focalpotentials=function(focal,dyads){
 }
 
 
-focalassoc<-function(focal,dyads,currevent,scalev,probnorm,forcemulti=F){
+focalassoc<-function(focal,dyads,currevent,scalev,probnorm,floaterprob=0.01,forcemulti=F){
 	####
 	# focal = ID of individual whose associations we are using
 	# dyads = all possible dyads
@@ -300,8 +312,8 @@ focalassoc<-function(focal,dyads,currevent,scalev,probnorm,forcemulti=F){
 	probs=potentials$assoc/(probnorm+1)
 	potids=potentials$names2[probs>0]
 	#consider these potentials vs existing group members - if they have a zero association with 
-	#an individual already in the group reduce the probability of them being in the GBI
-	probs[probs>0][sapply(potids, function (i) {potassocs=focalpotentials(i,dyads);sum(potassocs[potassocs$assocs==0,"names2"]%in%eventmembers)>0})]=0.001
+	#an individual already in the group reduce the probability of them being in the GBI SHOULD CHECK THIS VAL
+	probs[probs>0][sapply(potids, function (i) {potassocs=focalpotentials(i,dyads);sum(potassocs[potassocs$assocs==0,"names2"]%in%eventmembers)>0})]=floaterprob
 	#probabilities are scaled depending on the sociality of the seed
 	probs=probs*scalev
 	probs=probs^2
@@ -329,16 +341,19 @@ getinteractions<-function(inds,dyads,gbirow,intfreq,obseff){
 	gindivs=inds$indivs[gbirow==1]
 	pdyads=data.frame(t(combn(gindivs,2)))
 
+	#number of interactions depending on size of grouping event
+	totalint=intfreq*sum(gbirow)
 	#get the association of these dyads
 	pdyads$assoc=sapply(1:nrow(pdyads),function (x) dyads$assoc[(dyads$names1==pdyads[x,1]&dyads$names2==pdyads[x,2])|(dyads$names2==pdyads[x,1]&dyads$names1==pdyads[x,2])])
+
 	#convert these into probabilities (so they add up to 1)
-	pdyads$prob=pdyads$assoc/sum(pdyads$assoc)
+	pdyads$prob=(pdyads$assoc)^2/sum(pdyads$assoc^2)
 	#get all interactions that have occured in this grouping event
 	#individuals with higher association have higher probability of being observed interacting
-	allinters=sample(1:nrow(pdyads),intfreq,1,prob=pdyads$prob)
+	allinters=sample(1:nrow(pdyads),totalint,1,prob=pdyads$prob)
 	
 	#randomly sample this based on the observation effort
-	seenindex=sample(allinters,intfreq*obseff)
+	seenindex=sample(allinters,totalint*obseff)
 	seeninters=pdyads[seenindex,1:2]
 	names(seeninters)[1:2]=c("name1","name2")	
 	return(seeninters)
