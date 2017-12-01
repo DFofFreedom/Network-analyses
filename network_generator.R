@@ -3,6 +3,47 @@ symmat = function (bool,dyads){
 	return(rbind(dyads[bool,],dyads[bool,c(2,1)]))
 }
 
+#MAIN WRAPPER FUNCTION
+do_networksim = function(groups,mean.group.size,max.group.size,d.eff,i.dens,o.dens,m.i.eff,m.o.eff,sex.eff,
+	obs.eff,timesteps,intfreq,floaterprob,probnorm,
+	nreps,exportdir){
+	parvec=paste(d.eff,i.dens,o.dens,m.i.eff,sex.eff,obs.eff,timesteps,sep="_")#parameters of interest
+	resultfolders=c("popdat","truenet","obsnet","obsgbimat","obsgbigroups","interactions")
+	
+	if(!dir.exists(as.character(exportdir))){
+		dir.create(as.character(exportdir))
+	}
+
+	if(!dir.exists(file.path(exportdir,parvec))){
+		dir.create(file.path(exportdir,parvec))
+	}
+
+
+	#if export subfolders do not exist, create
+	for(folder in resultfolders){
+		fulldir=file.path(exportdir,parvec,folder,sep="/")
+		if(!dir.exists(fulldir)){
+			dir.create(fulldir)
+		}
+	}
+	for (rep in 1:nreps){
+		#currently only parallelising on the outside
+		
+		simulated.networks=network.generator(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,sex.eff,m.i.eff,m.o.eff)
+		obs.sim.networks=networkobs(simulated.networks,timesteps, obs.eff, intfreq,floaterprob,probnorm)
+		
+		#export - pop info, true network, observed network, observed gbimat,observed gbigroups, observed interactions
+		write.csv(simulated.networks$ind_data,paste(exportdir,"/",parvec,"/popdat/",rep,".csv",sep=""),row.names=F)
+		write.csv(simulated.networks$net.d,paste(exportdir,"/",parvec,"/truenet/",rep,".csv",sep=""),row.names=F)
+		write.csv(obs.sim.networks$obsnetwork,paste(exportdir,"/",parvec,"/obsnet/",rep,".csv",sep=""),row.names=F)
+		write.csv(obs.sim.networks$obsgbigroups,paste(exportdir,"/",parvec,"/obsgbigroups/",rep,".csv",sep=""),row.names=F)
+		write.csv(obs.sim.networks$obsgbimat,paste(exportdir,"/",parvec,"/obsgbimat/",rep,".csv",sep=""),row.names=F)
+		write.csv(obs.sim.networks$interactions,paste(exportdir,"/",parvec,"/interactions/",rep,".csv",sep=""),row.names=F)
+		
+	}
+	
+
+}
 
 ###NETWORK GENERATION FUNCTION####
 network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,sex.eff=NA,m.i.eff=NA,m.o.eff=NA,plot=F){
@@ -112,9 +153,6 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	ismale=dsex[,1]=="M"|dsex[,2]=="M"
 	
 
-	symmat = function (bool,dyads){
-		return(rbind(dyads[bool,],dyads[bool,c(2,1)]))
-	}
 	
 	#WITHIN GROUP EDGES####
 
@@ -123,10 +161,10 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 		round(rnbinom(1,size=i.dens*(distsv[x])^d.eff,prob=0.3)))
 	#MF
 	net.d[symmat(samesite&ismale&!samesex,dyads)]=sapply(which(samesite&ismale&!samesex),function (x) round(rnbinom(1,size=i.dens*(distsv[x])^d.eff,prob=0.3))+
-		round(rnbinom(1,size=m.i.eff+(i.dens*(distsv[x])^d.eff),prob=0.3)))
+		round(rnbinom(1,size=(m.i.eff+i.dens)*((distsv[x])^d.eff),prob=0.3)))
 	#MM
-	net.d[symmat(samesite&ismale&samesex,dyads)]=sapply(which(samesite&ismale&samesex),function (x) round(rnbinom(1,size=m.i.eff+(i.dens*(distsv[x])^d.eff),prob=0.3))+
-		round(rnbinom(1,size=m.i.eff+(i.dens*(distsv[x])^d.eff),prob=0.3)))
+	net.d[symmat(samesite&ismale&samesex,dyads)]=sapply(which(samesite&ismale&samesex),function (x) round(rnbinom(1,size=(m.i.eff+i.dens)*((distsv[x])^d.eff),prob=0.3))+
+		round(rnbinom(1,size=(m.i.eff+i.dens)*((distsv[x])^d.eff),prob=0.3)))
 	
 	#OUTSIDE GROUP EDGES####
 
@@ -135,10 +173,10 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 		round(rnbinom(1,size=o.dens*(distsv[x])^d.eff,prob=0.3)))
 	#MF
 	net.d[symmat(!samesite&ismale&!samesex,dyads)]=sapply(which(!samesite&ismale&!samesex),function (x) round(rnbinom(1,size=o.dens*(distsv[x])^d.eff,prob=0.3))+
-		round(rnbinom(1,size=m.o.eff+(o.dens*(distsv[x])^d.eff),prob=0.3)))
+		round(rnbinom(1,size=(m.o.eff+o.dens)*((distsv[x])^d.eff),prob=0.3)))
 	#MM
-	net.d[symmat(!samesite&ismale&samesex,dyads)]=sapply(which(!samesite&ismale&samesex),function (x) round(rnbinom(1,size=m.o.eff+(o.dens*(distsv[x])^d.eff),prob=0.3))+
-		round(rnbinom(1,size=m.o.eff+(o.dens*(distsv[x])^d.eff),prob=0.3)))	
+	net.d[symmat(!samesite&ismale&samesex,dyads)]=sapply(which(!samesite&ismale&samesex),function (x) round(rnbinom(1,size=(m.o.eff+o.dens)*((distsv[x])^d.eff),prob=0.3))+
+		round(rnbinom(1,size=(m.o.eff+o.dens)*((distsv[x])^d.eff),prob=0.3)))	
 	
 	#SEX HOMOPHILY EFFECT####
 	net.d[symmat(samesex,dyads)]= round(net.d[symmat(samesex,dyads)]*sex.eff)
@@ -310,6 +348,9 @@ focalassoc<-function(focal,dyads,currevent,scalev,probnorm,floaterprob=0.01,forc
 	
 	eventmembers=colnames(currevent)[currevent==1&(colnames(currevent)!=focal)]
 	probs=potentials$assoc/(probnorm+1)
+	if(sum(probs)==0){
+		return()
+	}
 	potids=potentials$names2[probs>0]
 	#consider these potentials vs existing group members - if they have a zero association with 
 	#an individual already in the group reduce the probability of them being in the GBI SHOULD CHECK THIS VAL
