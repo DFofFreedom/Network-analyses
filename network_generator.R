@@ -3,6 +3,47 @@ symmat = function (bool,dyads){
 	return(rbind(dyads[bool,],dyads[bool,c(2,1)]))
 }
 
+#MAIN WRAPPER FUNCTION
+do_networksim = function(groups,mean.group.size,max.group.size,d.eff,i.dens,o.dens,m.i.eff,m.o.eff,sex.eff,
+	obs.eff,timesteps,intfreq,floaterprob,probnorm,
+	nreps,exportdir){
+	parvec=paste(d.eff,i.dens,o.dens,m.i.eff,sex.eff,obs.eff,timesteps,sep="_")#parameters of interest
+	resultfolders=c("popdat","truenet","obsnet","obsgbimat","obsgbigroups","interactions")
+	
+	if(!dir.exists(as.character(exportdir))){
+		dir.create(as.character(exportdir))
+	}
+
+	if(!dir.exists(file.path(exportdir,parvec))){
+		dir.create(file.path(exportdir,parvec))
+	}
+
+
+	#if export subfolders do not exist, create
+	for(folder in resultfolders){
+		fulldir=file.path(exportdir,parvec,folder,sep="/")
+		if(!dir.exists(fulldir)){
+			dir.create(fulldir)
+		}
+	}
+	for (rep in 1:nreps){
+		#currently only parallelising on the outside
+		
+		simulated.networks=network.generator(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,sex.eff,m.i.eff,m.o.eff)
+		obs.sim.networks=networkobs(simulated.networks,timesteps, obs.eff, intfreq,floaterprob,probnorm)
+		
+		#export - pop info, true network, observed network, observed gbimat,observed gbigroups, observed interactions
+		write.csv(simulated.networks$ind_data,paste(exportdir,"/",parvec,"/popdat/",rep,".csv",sep=""),row.names=F)
+		write.csv(simulated.networks$network,paste(exportdir,"/",parvec,"/truenet/",rep,".csv",sep=""),row.names=F)
+		write.csv(obs.sim.networks$obsnetwork,paste(exportdir,"/",parvec,"/obsnet/",rep,".csv",sep=""),row.names=F)
+		write.csv(obs.sim.networks$obsgbigroups,paste(exportdir,"/",parvec,"/obsgbigroups/",rep,".csv",sep=""),row.names=F)
+		write.csv(obs.sim.networks$obsgbi,paste(exportdir,"/",parvec,"/obsgbimat/",rep,".csv",sep=""),row.names=F)
+		write.csv(obs.sim.networks$interactions,paste(exportdir,"/",parvec,"/interactions/",rep,".csv",sep=""),row.names=F)
+		
+	}
+	
+
+}
 
 ###NETWORK GENERATION FUNCTION####
 network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,sex.eff=NA,m.i.eff=NA,m.o.eff=NA,plot=F){
@@ -30,6 +71,12 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	if(is.na(sex.eff)){
 		sex.eff=1
 	}
+
+	#Scale m effects by i.eff and o.eff
+
+	m.i.eff=m.i.eff*i.dens
+	m.o.eff=m.o.eff*o.dens
+
 	###SETUP BASE POPULATION####
 	#and use this to calculate the overall size of the population
 	n.indivs<-mean.group.size*groups
@@ -106,9 +153,6 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	ismale=dsex[,1]=="M"|dsex[,2]=="M"
 	
 
-	symmat = function (bool,dyads){
-		return(rbind(dyads[bool,],dyads[bool,c(2,1)]))
-	}
 	
 	#WITHIN GROUP EDGES####
 
@@ -117,10 +161,10 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 		round(rnbinom(1,size=i.dens*(distsv[x])^d.eff,prob=0.3)))
 	#MF
 	net.d[symmat(samesite&ismale&!samesex,dyads)]=sapply(which(samesite&ismale&!samesex),function (x) round(rnbinom(1,size=i.dens*(distsv[x])^d.eff,prob=0.3))+
-		round(rnbinom(1,size=m.i.eff+(i.dens*(distsv[x])^d.eff),prob=0.3)))
+		round(rnbinom(1,size=(m.i.eff+i.dens)*((distsv[x])^d.eff),prob=0.3)))
 	#MM
-	net.d[symmat(samesite&ismale&samesex,dyads)]=sapply(which(samesite&ismale&samesex),function (x) round(rnbinom(1,size=m.i.eff+(i.dens*(distsv[x])^d.eff),prob=0.3))+
-		round(rnbinom(1,size=m.i.eff+(i.dens*(distsv[x])^d.eff),prob=0.3)))
+	net.d[symmat(samesite&ismale&samesex,dyads)]=sapply(which(samesite&ismale&samesex),function (x) round(rnbinom(1,size=(m.i.eff+i.dens)*((distsv[x])^d.eff),prob=0.3))+
+		round(rnbinom(1,size=(m.i.eff+i.dens)*((distsv[x])^d.eff),prob=0.3)))
 	
 	#OUTSIDE GROUP EDGES####
 
@@ -129,15 +173,16 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 		round(rnbinom(1,size=o.dens*(distsv[x])^d.eff,prob=0.3)))
 	#MF
 	net.d[symmat(!samesite&ismale&!samesex,dyads)]=sapply(which(!samesite&ismale&!samesex),function (x) round(rnbinom(1,size=o.dens*(distsv[x])^d.eff,prob=0.3))+
-		round(rnbinom(1,size=m.o.eff+(o.dens*(distsv[x])^d.eff),prob=0.3)))
+		round(rnbinom(1,size=(m.o.eff+o.dens)*((distsv[x])^d.eff),prob=0.3)))
 	#MM
-	net.d[symmat(!samesite&ismale&samesex,dyads)]=sapply(which(!samesite&ismale&samesex),function (x) round(rnbinom(1,size=m.o.eff+(o.dens*(distsv[x])^d.eff),prob=0.3))+
-		round(rnbinom(1,size=m.o.eff+(o.dens*(distsv[x])^d.eff),prob=0.3)))	
+	net.d[symmat(!samesite&ismale&samesex,dyads)]=sapply(which(!samesite&ismale&samesex),function (x) round(rnbinom(1,size=(m.o.eff+o.dens)*((distsv[x])^d.eff),prob=0.3))+
+		round(rnbinom(1,size=(m.o.eff+o.dens)*((distsv[x])^d.eff),prob=0.3)))	
 	
 	#SEX HOMOPHILY EFFECT####
 	net.d[symmat(samesex,dyads)]= round(net.d[symmat(samesex,dyads)]*sex.eff)
 
 	diag(net.d)=0
+	net.d[net.d<0]=0
 	
 	#plots the graph of each network made if plot=TRUE
 	if(plot==T){
@@ -158,7 +203,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 
 ###NETWORK SAMPLING FUNCTION####		      
 		      
-networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
+networkobs<-function(pop.dat,timesteps,obseff,intfreq,floaterprob=0.01,probnorm=NA){
 	####
 	#pop.dat - pop.dat object produced by network_generator
 	#timesteps - number of timesteps
@@ -187,12 +232,16 @@ networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
 	
 	#generate GBI mat. Select a random individual - check chance of being seen with other
 	#indiv based on their associations. Repeat this for any individual added.
-	gbimat=t(sapply(1:timesteps,function (x) makeevent(inds,dyads,probnorm)))
+	gbid=t(sapply(1:timesteps,function (x) makeevent(inds,dyads,floaterprob,probnorm)))
+	gbimat=do.call(rbind,gbid[,1])
 	colnames(gbimat)=inds$indivs
+	gbigroups=do.call(c,gbid[,2])
+
 
 	#randomly see only certain groups based on observation effort (could make it so larger groups are more likely to be seen - but, simple for now)
-	obsgbimat=gbimat[sort(sample(1:timesteps,round(obseff*timesteps))),]
-
+	obsevents=sort(sample(1:timesteps,round(obseff*timesteps)))
+	obsgbimat=gbimat[obsevents,]
+	obsgbigroups=gbigroups[obsevents]
 	#similarly we could throw away individuals from the GBI here based on their sociality - but keeping it simple for now
 
 	
@@ -201,10 +250,10 @@ networkobs<-function(pop.dat,timesteps,obseff,intfreq,probnorm=NA){
 	interactions=do.call(rbind,interactions)
 	interactions$sex1=inds$sex[match(interactions$name1,inds$indivs)]	
 	interactions$sex2=inds$sex[match(interactions$name2,inds$indivs)]	
-	return(list(truegbimat=gbimat,obsgbi=obsgbimat,obsnetwork=obsnetwork,interactions=interactions))
+	return(list(truegbimat=gbimat,truegbigroups=gbigroups,obsgbi=obsgbimat,obsgbigroups=obsgbigroups,obsnetwork=obsnetwork,interactions=interactions))
 }
 
-assocnoise<-function(xobseff){
+assocnoise<-function(x,obseff){
 	if(x==0){
 		return(0)
 	} else {
@@ -215,28 +264,72 @@ assocnoise<-function(xobseff){
 	}
 }
 
-makeevent<-function(inds,dyads,probnorm=NA){
+makeevent<-function(inds,dyads,floaterprob=0.01,probnorm=NA,verbose=F){
+	if(is.na(probnorm)){
+		probnorm=max(dyads$assoc)
+	}
 	#randomly pick an individual to start
 	gbirow=matrix(0,1,length(inds$indivs))
 	colnames(gbirow)=inds$indivs
 	seed=sample(inds$indivs,1)
-	gbirow[colnames(gbirow)==seed]=1	
-	fassoc=focalassoc(seed,dyads,probnorm,T)
+	seedsite=inds$groups[inds$indivs==seed]
+	seeddegree=abs(round(rnorm(1,sum(focalpotentials(seed,dyads)$assocs>0),2)))
+	gbirow[colnames(gbirow)==seed]=1
+	#scalev=(seeddegree-(sum(gbirow)-1))/probnorm
+	scalev=1
+	#not usins scalev as it stands. Far too stingy with group sizes!
+	if(verbose==T){
+		print(paste("seed is",seed))
+		print(paste("seed degree is",seeddegree))
+		print(paste("groupsize probability scaling factor is",scalev))
+	}	
+	fassoc=focalassoc(seed,dyads,gbirow,scalev,probnorm,floaterprob,T)
 	todo=fassoc
 	checked=seed
+	if(verbose==T){
+		print(paste("todo:",paste(todo,collapse=" ")))
+		print(paste("checked:",paste(checked,collapse=" ")))
+	}	
 	gbirow[colnames(gbirow)%in%fassoc]=1
 	
 	#check the associations of the individuals we are adding until we are no longer adding members
 	while(length(todo)>0){
-		fassoc=unlist(sapply(todo,function (x) focalassoc(x,dyads,probnorm)))
+		#scalev=(seeddegree-(sum(gbirow)-1))/probnorm
+		scalev=1
+		#randomise order of todo so we're not biased by the order they were added to matrix
+		todo=todo[sample(1:length(todo))]
+		#ISSUE: I love sapply, but this means that several members can be added to the group at once
+		#without considering the size of the group or the members being added at the same time.
+		#fassoc=unlist(sapply(todo,function (x) focalassoc(x,dyads,gbirow,scalev,probnorm,floaterprob)))
+		if(verbose==T){
+			print(paste("groupsize:",sum(gbirow)))
+			print(paste("groupsize probability scaling factor is",scalev))
+			print(paste("focal individual:",todo[1]))
+		}	
+		
+		fassoc=focalassoc(todo[1],dyads,gbirow,scalev,probnorm,floaterprob)
 		gbirow[colnames(gbirow)%in%fassoc]=1		
-		checked=c(checked,todo)
-		todo=unique(fassoc[!fassoc%in%checked])
+		checked=c(checked,todo[1])
+		todo=c(todo[!todo%in%checked],unique(fassoc[!fassoc%in%checked&!fassoc%in%todo]))
+		if(verbose==T){
+			print(paste("todo:",paste(todo,collapse=" ")))
+			print(paste("checked:",paste(checked,collapse=" ")))
+		}	
+
 	}
-	return(gbirow)	
+	return(list(gbirow=gbirow,group=seedsite))	
 }
 
-focalassoc<-function(focal,dyads,probnorm,forcemulti=F){
+focalpotentials=function(focal,dyads){
+	potentials=dyads[dyads$names1==focal|dyads$names2==focal,]
+	#swap the names around for readability
+	potentials$names2[potentials$names1!=focal]=potentials$names1[potentials$names1!=focal]
+	potentials$names1[potentials$names1!=focal]=focal
+	return(potentials)
+}
+
+
+focalassoc<-function(focal,dyads,currevent,scalev,probnorm,floaterprob=0.01,forcemulti=F){
 	####
 	# focal = ID of individual whose associations we are using
 	# dyads = all possible dyads
@@ -244,22 +337,35 @@ focalassoc<-function(focal,dyads,probnorm,forcemulti=F){
 	# probnorm = value used for the normalisation of associations probabilities - if not given is set to 
 	# 	
 	####
+	
 
+	
 	if(is.na(probnorm)){
 		probnorm=max(dyads$assoc)
 	}
-	potentials=dyads[dyads$names1==focal|dyads$names2==focal,]
-	#swap the names around for readability
-	potentials$names2[potentials$names1!=focal]=potentials$names1[potentials$names1!=focal]
-	potentials$names1[potentials$names1!=focal]=focal
 	
+	potentials=focalpotentials(focal,dyads)
+	
+	eventmembers=colnames(currevent)[currevent==1&(colnames(currevent)!=focal)]
+	probs=potentials$assoc/(probnorm+1)
+	if(sum(probs)==0){
+		return()
+	}
+	potids=potentials$names2[probs>0]
+	#consider these potentials vs existing group members - if they have a zero association with 
+	#an individual already in the group reduce the probability of them being in the GBI SHOULD CHECK THIS VAL
+	probs[probs>0][sapply(potids, function (i) {potassocs=focalpotentials(i,dyads);sum(potassocs[potassocs$assocs==0,"names2"]%in%eventmembers)>0})]=floaterprob
+	#probabilities are scaled depending on the sociality of the seed
+	probs=probs*scalev
+	probs=probs^2
 	if(forcemulti==T){
 		gbirow=rep(0,nrow(potentials))
 		while(sum(gbirow)==0){
-			gbirow=rbinom(potentials$assoc, 1, potentials$assoc/(probnorm+1))
+
+			gbirow=rbinom(potentials$assoc, 1, probs)
 		}
 	} else {
-		gbirow=rbinom(potentials$assoc, 1, potentials$assoc/(probnorm+1))
+		gbirow=rbinom(potentials$assoc, 1,probs )
 
 	}
 	return(potentials$names2[gbirow==1])
@@ -276,16 +382,19 @@ getinteractions<-function(inds,dyads,gbirow,intfreq,obseff){
 	gindivs=inds$indivs[gbirow==1]
 	pdyads=data.frame(t(combn(gindivs,2)))
 
+	#number of interactions depending on size of grouping event
+	totalint=intfreq*sum(gbirow)
 	#get the association of these dyads
 	pdyads$assoc=sapply(1:nrow(pdyads),function (x) dyads$assoc[(dyads$names1==pdyads[x,1]&dyads$names2==pdyads[x,2])|(dyads$names2==pdyads[x,1]&dyads$names1==pdyads[x,2])])
+
 	#convert these into probabilities (so they add up to 1)
-	pdyads$prob=pdyads$assoc/sum(pdyads$assoc)
+	pdyads$prob=(pdyads$assoc)^2/sum(pdyads$assoc^2)
 	#get all interactions that have occured in this grouping event
 	#individuals with higher association have higher probability of being observed interacting
-	allinters=sample(1:nrow(pdyads),intfreq,1,prob=pdyads$prob)
+	allinters=sample(1:nrow(pdyads),totalint,1,prob=pdyads$prob)
 	
 	#randomly sample this based on the observation effort
-	seenindex=sample(allinters,intfreq*obseff)
+	seenindex=sample(allinters,totalint*obseff)
 	seeninters=pdyads[seenindex,1:2]
 	names(seeninters)[1:2]=c("name1","name2")	
 	return(seeninters)
