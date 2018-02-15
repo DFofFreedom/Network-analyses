@@ -128,7 +128,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	
 
 	inds$x=group.x[inds[,2]]
-	inds$y=group.x[inds[,2]]
+	inds$y=group.x[inds[,3]]
 	#-----------------------------------------------------------------------------------------------------------------
 
 	#####NETWORK STUFF#####
