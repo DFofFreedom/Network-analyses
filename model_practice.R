@@ -304,10 +304,8 @@ diag(sh.gr)<-0
 #Run two models with/without home range info
 #also have an effect for the number of resightings of each individual
 
-#So these didn't have shared group membership in them? I've added it, but was that intentional?
-
-modC3<-ergm(gbi.NET2~sum+nonzero+nodefactor("sex")+nodecov("nres")+nodematch("sex")+edgecov(sh.gr),reference=~Poisson,response="weight")
-modC4<-ergm(gbi.NET2~sum+nonzero+nodefactor("sex")+nodecov("nres")+nodematch("sex")+edgecov(sh.gr)+edgecov(dist.centroids2),reference=~Poisson,response="weight")
+modC3<-ergm(gbi.NET2~sum+nonzero+nodefactor("sex")+nodecov("nres")+nodematch("sex"),reference=~Poisson,response="weight")
+modC4<-ergm(gbi.NET2~sum+nonzero+nodefactor("sex")+nodecov("nres")+nodematch("sex")+edgecov(dist.centroids2),reference=~Poisson,response="weight")
 #also for consistency I wasn't sure why it went from modB & modB_2 to modC3 and modC4.
 
 ##------------------------------------------------------------------------------------------------------------------------------
