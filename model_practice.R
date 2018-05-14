@@ -14,23 +14,23 @@ library(assortnet)
 ##(Paths will need changing)
 
 #true network
-setwd("C:/Users/matth/Desktop/Dave_Julian simulations folder/Network-analyses-jevansbranch/test/8_0.4_0.4_-0.6_0.25_0.2_1000/truenet")
+setwd("D:/Documents/Guelph squirrels/Analysis/Network analyses/8_0.4_0.4_-0.6_0.25_0.2_1000/truenet")
 truenet<-read.csv("1.csv",check.names=FALSE)
 
 #observed network
-setwd("C:/Users/matth/Desktop/Dave_Julian simulations folder/Network-analyses-jevansbranch/test/8_0.4_0.4_-0.6_0.25_0.2_1000/obsnet")
+setwd("D:/Documents/Guelph squirrels/Analysis/Network analyses/8_0.4_0.4_-0.6_0.25_0.2_1000/obsnet")
 obsnet<-read.csv("1.csv",check.names=FALSE)
 
 #association network
-setwd("C:/Users/matth/Desktop/Dave_Julian simulations folder/Network-analyses-jevansbranch/test/8_0.4_0.4_-0.6_0.25_0.2_1000/obsgbimat")
+setwd("D:/Documents/Guelph squirrels/Analysis/Network analyses/8_0.4_0.4_-0.6_0.25_0.2_1000/obsgbimat")
 gbimat<-read.csv("1.csv",check.names=FALSE)
 
 #data on individuals
-setwd("C:/Users/matth/Desktop/Dave_Julian simulations folder/Network-analyses-jevansbranch/test/8_0.4_0.4_-0.6_0.25_0.2_1000/popdat")
+setwd("D:/Documents/Guelph squirrels/Analysis/Network analyses/8_0.4_0.4_-0.6_0.25_0.2_1000/popdat")
 indiv_dat<-read.csv("1.csv",check.names=FALSE)
 
 #location of groups
-setwd("C:/Users/matth/Desktop/Dave_Julian simulations folder/Network-analyses-jevansbranch/test/8_0.4_0.4_-0.6_0.25_0.2_1000/obsgbigroups")
+setwd("D:/Documents/Guelph squirrels/Analysis/Network analyses/8_0.4_0.4_-0.6_0.25_0.2_1000/obsgbigroups")
 grouplocs1<-read.csv("1.csv",check.names=FALSE)
 names(grouplocs1)<-"Gr"
 
@@ -43,6 +43,7 @@ gbinet<-get_network(gbimat, data_format = "GBI",identities=colnames(gbimat))
 
 #generate a second "empty" association network
 #This will be used to create a count (rather than association index) version of the association network
+start=Sys.time()
 gbinet2<-matrix(0,nr=nrow(indiv_dat),nc=nrow(indiv_dat))
 colnames(gbinet2)<-rownames(gbinet2)<-names(gbimat)
 
@@ -52,12 +53,29 @@ for(j in 1:ncol(gbinet2)){
 gbinet2[i,j]<-sum(gbimat[,i]==1&gbimat[,j]==1)
 }
 }
+diag(gbinet2)<-0
+end = Sys.time()
 
-#calculate numberof times each individual is observed in the association network (to use as an explanatory variable)
+(duration= end-start)
+
+#calculate number of times each individual is observed in the association network (to use as an explanatory variable)
 nres<-diag(gbinet2)
 
 #then set diagonal of the matrix to zero
 diag(gbinet2)<-0
+
+#So one of the tutorials on Dai Shizuka's website mentioned that this projects a two mode network to a once mode network, 
+start=Sys.time()
+gbinetT= t(as.matrix(gbimat)) %*% as.matrix(gbimat)
+diag(gbinetT)=0
+end=Sys.time()
+
+(duration = end-start)
+
+sum(!gbinetT==gbinet2) #exactly the same. 
+
+#on my laptop the version with the loop takes 0.174463 secs, the version with transpose takes 0.004011154 secs
+#Obviously its the ergms that make the majority of the difference in the script, but probably still worth changing
 
 ##--------------------------------------------------------------------------------
 
@@ -95,17 +113,17 @@ dist.centroids<-as.matrix(dist(indiv.centroids[,2:3]))
 
 #First set is for weighted matrices
 
-A<-netlm(list(gbinet),list(truenet),mode="graph",nullhyp=c("qapspp"))
-B<-netlm(list(obsnet),list(truenet),mode="graph",nullhyp=c("qapspp"))
-C<-netlm(list(gbinet),list(obsnet),mode="graph",nullhyp=c("qapspp"))
+A<-netlm(list(gbinet),list(truenet),mode="graph",nullhyp=c("qapspp")) 
+B<-netlm(list(obsnet),list(truenet),mode="graph",nullhyp=c("qapspp")) 
+C<-netlm(list(gbinet),list(obsnet),mode="graph",nullhyp=c("qapspp")) 
 
 #---------------------------------
 
 #Second set is for binary matrices
 
-A_bin<-netlm(list(sign(gbinet)),list(sign(truenet)),mode="graph",nullhyp=c("qapspp"))
-B_bin<-netlm(list(sign(obsnet)),list(sign(truenet)),mode="graph",nullhyp=c("qapspp"))
-C_bin<-netlm(list(sign(gbinet)),list(sign(obsnet)),mode="graph",nullhyp=c("qapspp"))
+A_bin<-netlm(list(sign(gbinet)),list(sign(truenet)),mode="graph",nullhyp=c("qapspp")) 
+B_bin<-netlm(list(sign(obsnet)),list(sign(truenet)),mode="graph",nullhyp=c("qapspp"))  
+C_bin<-netlm(list(sign(gbinet)),list(sign(obsnet)),mode="graph",nullhyp=c("qapspp")) 
 
 #-----------------------------------------------------------------------------------------------------------
 
@@ -183,12 +201,21 @@ igraph::plot.igraph(tru.NET,edge.width=(E(tru.NET)$weight)^0.25,vertex.shape=c("
 
 #set up true network as a network object (that's right, another sna package!)
 tru.NET2.edgelist<-as.tnet(as.matrix(truenet))
-tru.NET2<-network(tru.NET2.edgelist[,1:2],directed=FALSE)
-set.edge.attribute(tru.NET2,"weight",as.vector(tru.NET2.edgelist[,3]))
+tru.NET2<-network(tru.NET2.edgelist, directed=F, ignore.eval=F, names.eval="weight") #to add edge weights immediately
+
+tru.NET2b<-network(as.matrix(truenet),directed=FALSE, ignore.eval=FALSE, names.eval="weight") 
+#but only half the number of edges, so not symmetrised? should be 398 I think
+
+#now redundant
+#set.edge.attribute(tru.NET2,"weight",as.vector(tru.NET2.edgelist[,3]))
 
 #set up attributes
 set.vertex.attribute(tru.NET2,"group",as.vector(indiv_dat$groups[-miss.true]))
 set.vertex.attribute(tru.NET2,"sex",as.vector(indiv_dat$sex[-miss.true]))
+
+#neater way of doing this
+tru.NET2b %v% "group" = indiv_dat$groups[-miss.true]
+tru.NET2b %v% "sex" = as.vector(indiv_dat$sex[-miss.true])
 
 #create a shared group matrix (binary) to use as a dyadic covariate in the model
 sh.gr<-array(NA,dim=dim(truenet))
@@ -209,6 +236,10 @@ for(i in 1:ncol(dist.gr)){
 
 #Run the model (shared group effect only)
 modA<-ergm(tru.NET2~sum+nonzero+nodefactor("sex")+nodematch("sex")+edgecov(sh.gr),reference=~Poisson,response="weight")
+summary(modA)
+
+modAb<-ergm(tru.NET2b~sum+nonzero+nodefactor("sex")+nodematch("sex")+edgecov(sh.gr),reference=~Poisson,response="weight")
+summary(modAb)#essentially the same
 
 #Run an alternative model (shared group effect and distance between group effect)
 modA_2<-ergm(tru.NET2~sum+nonzero+nodefactor("sex")+nodematch("sex")+edgecov(sh.gr)+edgecov(dist.gr),reference=~Poisson,response="weight")
@@ -217,8 +248,8 @@ modA_2<-ergm(tru.NET2~sum+nonzero+nodefactor("sex")+nodematch("sex")+edgecov(sh.
 
 #set up observed network as a network object
 obs.NET2.edgelist<-as.tnet(as.matrix(obsnet))
-obs.NET2<-network(obs.NET2.edgelist[,1:2],directed=FALSE)
-set.edge.attribute(obs.NET2,"weight",as.vector(obs.NET2.edgelist[,3]))
+obs.NET2<-network(obs.NET2.edgelist, directed=F, ignore.eval=F, names.eval="weight")
+#set.edge.attribute(obs.NET2,"weight",as.vector(obs.NET2.edgelist[,3]))
 
 #add attributes
 set.vertex.attribute(obs.NET2,"group",as.vector(indiv_dat$groups[-miss.obs]))
@@ -251,8 +282,8 @@ modB_2<-ergm(obs.NET2~sum+nonzero+nodefactor("sex")+nodematch("sex")+edgecov(sh.
 
 #association network as network package object
 gbi.NET2.edgelist<-as.tnet(as.matrix(gbinet2))
-gbi.NET2<-network(gbi.NET2.edgelist[,1:2],directed=FALSE)
-set.edge.attribute(gbi.NET2,"weight",as.vector(gbi.NET2.edgelist[,3]))
+gbi.NET2<-network(gbi.NET2.edgelist,directed=F, ignore.eval=F, names.eval="weight")
+#set.edge.attribute(gbi.NET2,"weight",as.vector(gbi.NET2.edgelist[,3]))
 
 #add attributes
 set.vertex.attribute(gbi.NET2,"group",as.vector(indiv_dat$groups[-miss.gbi]))
@@ -272,8 +303,10 @@ diag(sh.gr)<-0
 
 #Run two models with/without home range info
 #also have an effect for the number of resightings of each individual
+
 modC3<-ergm(gbi.NET2~sum+nonzero+nodefactor("sex")+nodecov("nres")+nodematch("sex"),reference=~Poisson,response="weight")
 modC4<-ergm(gbi.NET2~sum+nonzero+nodefactor("sex")+nodecov("nres")+nodematch("sex")+edgecov(dist.centroids2),reference=~Poisson,response="weight")
+#also for consistency I wasn't sure why it went from modB & modB_2 to modC3 and modC4.
 
 ##------------------------------------------------------------------------------------------------------------------------------
 ##------------------------------------------------------------------------------------------------------------------------------
@@ -285,7 +318,6 @@ modC4<-ergm(gbi.NET2~sum+nonzero+nodefactor("sex")+nodecov("nres")+nodematch("se
 assort.gog<-assortment.discrete(gbinet2,indiv_dat$sex[-miss.gbi])$r
 assort.tru<-assortment.discrete(truenet,indiv_dat$sex[-miss.true])$r
 assort.obs<-assortment.discrete(obsnet,indiv_dat$sex[-miss.obs])$r
-
 
 #-----------------------------
 
@@ -342,13 +374,23 @@ for(ii in 1:10000){
    r.gbinet2[i,j]<-sum(newgbi[,i]==1&newgbi[,j]==1)
   }
  }
+ 
+ #So i think this could be 
+ r.gbinetT =  t(as.matrix(newgbi)) %*% as.matrix(newgbi) 
+ 
+ sum(!r.gbinetT==r.gbinet2) #the same if diag is not set to 0. Should it be set to zero?
+ 
+ diag(r.gbinet2)=0 #I assume so
 
  #calculate assortativity of randomised network
- tmp.assort<-assortment.discrete(r.gbinet2,indiv_dat$sex[-miss.gbi])
- 
+ tmp.assort<-assortment.discrete(r.gbinet2,indiv_dat$sex[-miss.gbi]) #-0.672
+
  #model differences in degree in randomised network
- str.tmp<-colSums(r.gbinet2)
+ str.tmp<-colSums(r.gbinet2) 
  tmp.mod<-glm(str.tmp~indiv_dat$sex[-miss.gbi],family=poisson)
+ #vs
+ tmp.modT<-glm(colSums(r.gbinetT)~indiv_dat$sex[-miss.gbi],family=poisson)
+ #way lower intercept, similar parameter est, much lower deviance (all due to diag in r.gbinet2 not being set to 0?)
 
  #store m vs f estimate from model
  r.effs[ii]<-coef(tmp.mod)[2]
