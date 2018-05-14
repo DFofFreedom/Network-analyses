@@ -266,7 +266,7 @@ assocnoise<-function(x,obseff){
 
 makeevent<-function(inds,dyads,floaterprob=0.01,probnorm=NA,verbose=F){
 	if(is.na(probnorm)){
-		probnorm=max(dyads$assoc)
+		probnorm=max(dyads$assoc)+1
 	}
 	#randomly pick an individual to start
 	gbirow=matrix(0,1,length(inds$indivs))
