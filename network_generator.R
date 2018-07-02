@@ -19,7 +19,7 @@ do_networksim = function(groups,mean.group.size,max.group.size,d.eff,i.dens,o.de
 	for (rep in (startrep+1):(startrep+nreps)){	
 		simulated.networks=network.generator(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,sex.eff,m.i.eff,m.o.eff)
 		
-		for(ovs.eff.c in obs.eff.v){
+		for(obs.eff.c in obs.eff.v){
 			parvec=paste(d.eff,i.dens,o.dens,m.i.eff,sex.eff,obs.eff.c,timesteps,sep="_")#parameters of interest
 			obs.sim.networks=networkobs(simulated.networks,timesteps, obs.eff.c, intfreq,floaterprob,probnorm)
 		
@@ -42,7 +42,7 @@ do_networksim = function(groups,mean.group.size,max.group.size,d.eff,i.dens,o.de
 			write.csv(obs.sim.networks$obsnetwork,paste(exportdir,"/",parvec,"/obsnet/",rep,".csv",sep=""),row.names=F)
 			write.csv(obs.sim.networks$obsgbigroups,paste(exportdir,"/",parvec,"/obsgbigroups/",rep,".csv",sep=""),row.names=F)
 			write.csv(obs.sim.networks$obsgbi,paste(exportdir,"/",parvec,"/obsgbimat/",rep,".csv",sep=""),row.names=F)
-			write.csv(obs.sim.networks$interactions,paste(exportdir,"/",parvec,"/interactions/",rep,".csv",sep=""),row.names=F)
+			#write.csv(obs.sim.networks$interactions,paste(exportdir,"/",parvec,"/interactions/",rep,".csv",sep=""),row.names=F)
 		}
 	}
 	
@@ -132,7 +132,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	
 
 	inds$x=group.x[inds[,2]]
-	inds$y=group.x[inds[,3]]
+	inds$y=group.y[inds[,3]]
 	#-----------------------------------------------------------------------------------------------------------------
 
 	#####NETWORK STUFF#####
@@ -250,12 +250,14 @@ networkobs<-function(pop.dat,timesteps,obseff,intfreq,floaterprob=0.01,probnorm=
 
 	
 	#get observed interactions (for interaction based network)
-	interactions=lapply(1:nrow(obsgbimat),function (x) data.frame(getinteractions(inds,dyads,gbimat[x,],intfreq,obseff),timestep=x))
-	interactions=do.call(rbind,interactions)
-	interactions$sex1=inds$sex[match(interactions$name1,inds$indivs)]	
-	interactions$sex2=inds$sex[match(interactions$name2,inds$indivs)]	
-	return(list(truegbimat=gbimat,truegbigroups=gbigroups,obsgbi=obsgbimat,obsgbigroups=obsgbigroups,obsnetwork=obsnetwork,interactions=interactions))
-}
+	#interactions=lapply(1:nrow(obsgbimat),function (x) data.frame(getinteractions(inds,dyads,gbimat[x,],intfreq,obseff),timestep=x))
+	#interactions=do.call(rbind,interactions)
+	#interactions$sex1=inds$sex[match(interactions$name1,inds$indivs)]	
+	#interactions$sex2=inds$sex[match(interactions$name2,inds$indivs)]	
+	#return(list(truegbimat=gbimat,truegbigroups=gbigroups,obsgbi=obsgbimat,obsgbigroups=obsgbigroups,obsnetwork=obsnetwork,interactions=interactions))
+	return(list(truegbimat=gbimat,truegbigroups=gbigroups,obsgbi=obsgbimat,obsgbigroups=obsgbigroups,obsnetwork=obsnetwork))
+
+	}
 
 assocnoise<-function(x,obseff){
 	if(x==0){

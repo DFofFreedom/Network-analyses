@@ -11,7 +11,7 @@ library(assortnet)
 
 do_analysis<-function(exportdir1,exportdir2,filename,nreps,startrep){
 	#Prep export folders
-	if(!dir.exists(file.path(exportdir,parvec))){
+	if(!dir.exists(file.path(exportdir2,filename))){
 		dir.create(file.path(exportdir2,filename))
 	}
 	resultfolders=c("ergmresult","randconresult","randeffresult")
@@ -42,10 +42,10 @@ do_analysis<-function(exportdir1,exportdir2,filename,nreps,startrep){
 		dist.centroids2=dist.centroids[!miss.gbi,!miss.gbi]
 		nres=colSums(gbimat)
 
-		obs.ergm=do_ergm(obsnet,indiv_dat,miss.obs)
+		obs.ergm=do_ergm(obsnet,indiv_dat,miss.obs,dist.centroids2)
 		obs.ergm=data.frame(effect=row.names(obs.ergm),obs.ergm,type="OBS",rep=currrep)
 		
-		gbi.ergm=do_ergm(gbinet2,indiv_dat,miss.gbi,nres)
+		gbi.ergm=do_ergm(gbinet2,indiv_dat,miss.gbi,dist.centroids2,nres)
 		gbi.ergm=data.frame(effect=row.names(gbi.ergm),gbi.ergm,type="GBI",rep=currrep)
 		
 		obs.rand=do_randomisations(obsnet,indiv_dat,miss.obs,10000)
@@ -62,9 +62,9 @@ do_analysis<-function(exportdir1,exportdir2,filename,nreps,startrep){
 		rand.eff.result=rbind(obs.rand[[2]],gbi.rand[[2]])
 
 		#Do exports
-		write.csv(ergm.result,paste(exportdir2,"/",filename,"/ergmresult/",rep,".csv",sep=""),row.names=F)
-		write.csv(rand.con.result,paste(exportdir2,"/",filename,"/randconresult/",rep,".csv",sep=""),row.names=F)
-		write.csv(rand.eff.result,paste(exportdir2,"/",filename,"/randeffnresult/",rep,".csv",sep=""),row.names=F)
+		write.csv(ergm.result,paste(exportdir2,"/",filename,"/ergmresult/",currrep,".csv",sep=""),row.names=F)
+		write.csv(rand.con.result,paste(exportdir2,"/",filename,"/randconresult/",currrep,".csv",sep=""),row.names=F)
+		write.csv(rand.eff.result,paste(exportdir2,"/",filename,"/randeffnresult/",currrep,".csv",sep=""),row.names=F)
 	}
 }
 
@@ -113,7 +113,7 @@ do_randomisations<-function(net,indiv_dat2,miss,nrand=1000,swapn=1,cgbimat=NA){
 	)
 }
 
-do_ergm<-function(net,indiv_dat2,miss,nres2=NA){
+do_ergm<-function(net,indiv_dat2,miss,dist.centroids2,nres2=NA){
 	#remove missing individual from indiv_dat
 	indiv_dat2=indiv_dat2[!miss,]
 	
@@ -182,6 +182,12 @@ get_gbimat<-function(exportdir1,filename,currrep){
 	currfp=file.path(exportdir1,filename,"obsgbimat",paste(currrep,".csv",sep=""))
 	gbimat<-read.csv(currfp,check.names=FALSE)
 	return(gbimat)
+}
+
+get_indiv_dat<-function(exportdir1,filename,currrep){
+	currfp=file.path(exportdir1,filename,"popdat",paste(currrep,".csv",sep=""))
+	indiv_dat<-read.csv(currfp,check.names=FALSE)
+	return(indiv_dat)
 }
 
 gbimat_to_net<-function(gbimat){

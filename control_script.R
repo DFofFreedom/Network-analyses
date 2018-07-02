@@ -1,42 +1,64 @@
 source("network_generator.R")
 source("network_analysis.R")
-checkdata=function(exportdir,currpar2){
-	if(dir.exists(as.character(exportdir))){
+checkdata=function(exportdir,currpar2,multi=F,importdir=NULL){
+	if(!dir.exists(as.character(exportdir))){
 		#directory does not exist, code definitely not run	
 		return(data.frame(DATA=T,donereps=0))
 	}
 	
 	#Directory exists - are there the correct number of folders
 	ptoread=dir(exportdir)
+	if(length(ptoread)==0){
+		#directory is empty
+		return(data.frame(DATA=T,donereps=0))		
+	}
 	plist=strsplit(ptoread,"_")
 	ddf=do.call(rbind,lapply(plist,FUN=as.numeric))
 	colnames(ddf)=c("d.eff","i.dens","o.dens","m.i.eff","sex.eff","obs.eff","timesteps")
 	ddf=data.frame(filename=ptoread,ddf)
 
-	if(nrow(ddf)!=nrow(currpar2)){
-		#wrong number of subfolders, code needs to be rerun
+
+	#All obs.effs should increase together
+	if(nrow(ddf)!=(nrow(currpar2)+1)&multi==F){
+		#The folder is empty - possibly crashed on first attempt at generation/analysis
 		return(data.frame(DATA=T,donereps=0))
 	}
 
 	#check if these combos have data
+	if(multi){
+		ptoread=dir(importdir)	
+		plist=strsplit(ptoread,"_")
+		ddf=do.call(rbind,lapply(plist,FUN=as.numeric))
+		colnames(ddf)=c("d.eff","i.dens","o.dens","m.i.eff","sex.eff","obs.eff","timesteps")
+		ddf=data.frame(filename=ptoread,ddf)
+	}
 	ddf$DATA=F
 	ddf$donereps=0
 	typestoread=dir(file.path(exportdir,ptoread[1]))
-	ddf2=data.frame(type=rep(typestoread,each=nrow(ddf)),ddf)
+	typestoread=typestoread[typestoread!="interactions"]
+	if(length(typestoread)==0){
+		return(data.frame(DATA=T,donereps=0))
+	}
+	
+	#ddf2=data.frame(type=rep(typestoread,each=nrow(ddf)),ddf)
 	for(filename in ptoread){
 
-		for(type in typestoread){
-			repstoread=dir(file.path(exportdir,filename,type))
+		#for(type in typestoread){
+			repstoread=dir(file.path(exportdir,filename,typestoread[1]))
 			#if we have not done all the reps, need to run this set
 			if(length(repstoread)==currpar2$nreps[1]){
 				
-				ddf2$DATA[ddf$filename==filename&ddf$type==type]=T
-			}
-			ddf2$donereps=length(repstoread)
-		}
+				ddf$DATA[ddf$filename==filename]=T
+			} 
+			ddf$donereps[ddf$filename==filename]=length(repstoread)
+		#}
 		
 	}
-	return(data.frame(DATA=any(ddf2$DATA==F),donereps=min(ddf2$donereps)))
+	if(multi){
+			ddf$DATA=!ddf$DATA
+			return(ddf)
+	}
+	return(data.frame(DATA=any(ddf$DATA==F),donereps=min(ddf$donereps)))
 }
 
 parameters=read.csv("parametersets.csv")
@@ -71,17 +93,29 @@ if(outputcheck$DATA){
 }
 
 #if networks have been simulated, check if the analysis files exist
-outputcheck2=checkdata(exportdir2,currpar2)
-if(outputcheck2$DATA){
+outputcheck2=checkdata(exportdir2,currpar2,T,exportdir1)
+if(any(outputcheck2$DATA)){
 	if(!dir.exists(as.character(exportdir2))){
 		dir.create(as.character(exportdir2))
 	}
 	#analysis not yet done, we need to do it
 	toanalyse=dir(exportdir1)
-	for(filename in toanalyse){
-		nreps=currpar$nreps-outputcheck$donereps
-		startrep=outputcheck$donereps
-		do.call(do_analysis,list(exportdir1,exportdir2,filename,nreps,startrep))
+	for(i in 1:length(toanalyse)){
+		if(nrow(outputcheck2)>1){
+			if(outputcheck2$DATA[i]){
+				filename=toanalyse[i]
+				nreps=currpar$nreps-outputcheck2$donereps[i]
+				startrep=outputcheck2$donereps[i]
+				do.call(do_analysis,list(exportdir1,exportdir2,filename,nreps,startrep))
+			}
+		} else {
+			filename=toanalyse[i]
+			nreps=currpar$nreps
+			startrep=0
+			do.call(do_analysis,list(exportdir1,exportdir2,filename,nreps,startrep))
+		}
+			
+		
 	}
 }
 
