@@ -5,41 +5,45 @@ symmat = function (bool,dyads){
 
 #MAIN WRAPPER FUNCTION
 do_networksim = function(groups,mean.group.size,max.group.size,d.eff,i.dens,o.dens,m.i.eff,m.o.eff,sex.eff,
-	obs.eff,timesteps,intfreq,floaterprob,probnorm,
-	nreps,exportdir){
-	parvec=paste(d.eff,i.dens,o.dens,m.i.eff,sex.eff,obs.eff,timesteps,sep="_")#parameters of interest
-	resultfolders=c("popdat","truenet","obsnet","obsgbimat","obsgbigroups","interactions")
+	obs.eff.v,timesteps,intfreq,floaterprob,probnorm,
+	nreps,startrep,exportdir){
 	
+	#resultfolders=c("popdat","truenet","obsnet","obsgbimat","obsgbigroups","interactions")
+	resultfolders=c("popdat","obsnet","obsgbimat","obsgbigroups","interactions")
 	if(!dir.exists(as.character(exportdir))){
 		dir.create(as.character(exportdir))
 	}
+	#always export the true network
+	obs.eff.v=c(1,obs.eff.v)
 
-	if(!dir.exists(file.path(exportdir,parvec))){
-		dir.create(file.path(exportdir,parvec))
-	}
-
-
-	#if export subfolders do not exist, create
-	for(folder in resultfolders){
-		fulldir=file.path(exportdir,parvec,folder,sep="/")
-		if(!dir.exists(fulldir)){
-			dir.create(fulldir)
-		}
-	}
-	for (rep in 1:nreps){
-		#currently only parallelising on the outside
-		
+	for (rep in (startrep+1):(startrep+nreps)){	
 		simulated.networks=network.generator(groups,mean.group.size,max.group.size,d.eff,o.dens,i.dens,sex.eff,m.i.eff,m.o.eff)
-		obs.sim.networks=networkobs(simulated.networks,timesteps, obs.eff, intfreq,floaterprob,probnorm)
 		
-		#export - pop info, true network, observed network, observed gbimat,observed gbigroups, observed interactions
-		write.csv(simulated.networks$ind_data,paste(exportdir,"/",parvec,"/popdat/",rep,".csv",sep=""),row.names=F)
-		write.csv(simulated.networks$network,paste(exportdir,"/",parvec,"/truenet/",rep,".csv",sep=""),row.names=F)
-		write.csv(obs.sim.networks$obsnetwork,paste(exportdir,"/",parvec,"/obsnet/",rep,".csv",sep=""),row.names=F)
-		write.csv(obs.sim.networks$obsgbigroups,paste(exportdir,"/",parvec,"/obsgbigroups/",rep,".csv",sep=""),row.names=F)
-		write.csv(obs.sim.networks$obsgbi,paste(exportdir,"/",parvec,"/obsgbimat/",rep,".csv",sep=""),row.names=F)
-		write.csv(obs.sim.networks$interactions,paste(exportdir,"/",parvec,"/interactions/",rep,".csv",sep=""),row.names=F)
+		for(obs.eff.c in obs.eff.v){
+			parvec=paste(d.eff,i.dens,o.dens,m.i.eff,sex.eff,obs.eff.c,timesteps,sep="_")#parameters of interest
+			obs.sim.networks=networkobs(simulated.networks,timesteps, obs.eff.c, intfreq,floaterprob,probnorm)
 		
+			if(!dir.exists(file.path(exportdir,parvec))){
+				dir.create(file.path(exportdir,parvec))
+			}
+
+
+			#if export subfolders do not exist, create
+			for(folder in resultfolders){
+				fulldir=file.path(exportdir,parvec,folder,sep="/")
+				if(!dir.exists(fulldir)){
+					dir.create(fulldir)
+				}
+			}
+
+			#export - pop info, NO true network, observed network, observed gbimat,observed gbigroups, observed interactions
+			write.csv(simulated.networks$ind_data,paste(exportdir,"/",parvec,"/popdat/",rep,".csv",sep=""),row.names=F)
+			#write.csv(simulated.networks$network,paste(exportdir,"/",parvec,"/truenet/",rep,".csv",sep=""),row.names=F)
+			write.csv(obs.sim.networks$obsnetwork,paste(exportdir,"/",parvec,"/obsnet/",rep,".csv",sep=""),row.names=F)
+			write.csv(obs.sim.networks$obsgbigroups,paste(exportdir,"/",parvec,"/obsgbigroups/",rep,".csv",sep=""),row.names=F)
+			write.csv(obs.sim.networks$obsgbi,paste(exportdir,"/",parvec,"/obsgbimat/",rep,".csv",sep=""),row.names=F)
+			#write.csv(obs.sim.networks$interactions,paste(exportdir,"/",parvec,"/interactions/",rep,".csv",sep=""),row.names=F)
+		}
 	}
 	
 
@@ -128,7 +132,7 @@ network.generator<-function(groups,mean.group.size,max.group.size,d.eff,o.dens,i
 	
 
 	inds$x=group.x[inds[,2]]
-	inds$y=group.x[inds[,3]]
+	inds$y=group.y[inds[,3]]
 	#-----------------------------------------------------------------------------------------------------------------
 
 	#####NETWORK STUFF#####
@@ -246,12 +250,14 @@ networkobs<-function(pop.dat,timesteps,obseff,intfreq,floaterprob=0.01,probnorm=
 
 	
 	#get observed interactions (for interaction based network)
-	interactions=lapply(1:nrow(obsgbimat),function (x) data.frame(getinteractions(inds,dyads,gbimat[x,],intfreq,obseff),timestep=x))
-	interactions=do.call(rbind,interactions)
-	interactions$sex1=inds$sex[match(interactions$name1,inds$indivs)]	
-	interactions$sex2=inds$sex[match(interactions$name2,inds$indivs)]	
-	return(list(truegbimat=gbimat,truegbigroups=gbigroups,obsgbi=obsgbimat,obsgbigroups=obsgbigroups,obsnetwork=obsnetwork,interactions=interactions))
-}
+	#interactions=lapply(1:nrow(obsgbimat),function (x) data.frame(getinteractions(inds,dyads,gbimat[x,],intfreq,obseff),timestep=x))
+	#interactions=do.call(rbind,interactions)
+	#interactions$sex1=inds$sex[match(interactions$name1,inds$indivs)]	
+	#interactions$sex2=inds$sex[match(interactions$name2,inds$indivs)]	
+	#return(list(truegbimat=gbimat,truegbigroups=gbigroups,obsgbi=obsgbimat,obsgbigroups=obsgbigroups,obsnetwork=obsnetwork,interactions=interactions))
+	return(list(truegbimat=gbimat,truegbigroups=gbigroups,obsgbi=obsgbimat,obsgbigroups=obsgbigroups,obsnetwork=obsnetwork))
+
+	}
 
 assocnoise<-function(x,obseff){
 	if(x==0){
